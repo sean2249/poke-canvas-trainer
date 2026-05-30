@@ -6,53 +6,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 30天寶可夢繪畫特訓營 — a personal 30-day Pokémon drawing-practice PWA. Each day unlocks a subject + technique; the user draws on paper, photographs the result, and Claude (multimodal) returns gentle Traditional-Chinese feedback using a fixed「三步驟點評法」(praise → one precise tweak → one technique tip). Drawings and feedback are collected into a「圖鑑牆」(gallery wall).
 
+This is a **fully static, frontend-only app** deployed to GitHub Pages. There is no backend.
+
 ## Commands
 
 ```bash
-npm run dev          # Vite dev server at :5173 — ALSO serves /api in-process (see below)
+npm run dev          # Vite dev server at /poke-canvas-trainer/ (note the base path)
 npm run build        # tsc -b (typecheck) + vite build + PWA generation -> dist/
-npm run typecheck    # tsc -b --noEmit (covers src + vite config/plugin/shared, NOT functions/)
+npm run typecheck    # tsc -b --noEmit
 npm run preview      # serve the production build
-npm run pages:dev    # wrangler pages dev — real workerd runtime (optional; may fail in non-interactive sandboxes with "write EOF")
 ```
 
-Typecheck the Cloudflare Function separately (it is excluded from `tsc -b`):
-
-```bash
-npx tsc -p functions/tsconfig.json --noEmit
-```
-
-There is no test suite. `build` + the two typecheck commands are the verification gates (CI runs `typecheck` then `build`).
+There is no test suite. `build` + `typecheck` are the verification gates (CI runs both, then deploys).
 
 ## Architecture
 
-**Three runtime surfaces, one shared brain.** The AI critique logic (the "三步驟" system prompt + the Anthropic Messages API call) lives ONLY in `shared/critique.ts`. Two surfaces import it so the prompt never drifts:
-- `functions/api/critique.ts` — Cloudflare Pages Function, used in **production**. Reads the key from `env.ANTHROPIC_API_KEY`.
-- `vite-dev-api.ts` — a Vite plugin (`apply: 'serve'`) that serves `/api/status` and `/api/critique` in-process during `npm run dev`, reading the key from `process.env` or `.dev.vars`. This exists so local dev needs only one command and does not depend on wrangler.
+**No backend — the browser calls Anthropic directly.** `src/lib/critique.ts` builds the 3-step system prompt and POSTs to `api.anthropic.com` from the browser, including the `anthropic-dangerous-direct-browser-access: true` header (Anthropic's opt-in for client-side calls). When changing critique behavior, this is the one file to edit.
 
-The React frontend NEVER imports `shared/` — it only talks to `/api/*` over fetch. When editing critique behavior, change `shared/critique.ts`; the two surfaces are thin wrappers (env wiring + error→HTTP mapping).
+**The API key lives in the user's browser.** `src/lib/apiKey.ts` stores the Anthropic key (and optional model override) in `localStorage`; the user enters it on the Settings page. This is a deliberate trade-off of the static-hosting design — Settings shows a security warning. Do not reintroduce a server proxy or env-var key without changing the deployment model.
 
-**AI is optional, and the UI reflects it.** `/api/status` returns `{ aiEnabled }` (true iff a key is set). `src/lib/api.ts#getAiStatus` is the single client check. When `aiEnabled` is false, the app stays fully usable: `DayView` lets the user save a drawing with empty `feedback`, and later (once a key exists) offers a "請老師現在點評" button to backfill the critique on the stored image. `completedAt`/gallery progress count entries regardless of feedback. Don't reintroduce a hard requirement for the key.
+**AI is optional, and the UI reflects it.** `getAiStatus()` in `src/lib/api.ts` is just `hasApiKey()` (synchronous — reads localStorage, no network). When no key is set, the app stays fully usable: `DayView` lets the user save a drawing with empty `feedback` and links to Settings; once a key exists it offers a "請老師現在點評" button to backfill the critique on the stored image. Progress/gallery count entries regardless of feedback. Keep the key non-mandatory.
 
-**Storage is local-only and the backend is stateless.** All user data (drawings as compressed JPEG data URLs + feedback + progress) lives in IndexedDB via `src/lib/db.ts` (using `idb`). There is NO server database — the Cloudflare Function is a pure stateless proxy. Consequences:
-- Data is per-browser/per-device; it does not sync. `db.ts` exports `exportAll`/`importAll` (JSON backup) and calls `navigator.storage.persist()` on startup to resist eviction. Settings surfaces both.
-- Images are downscaled to ≤1024px JPEG in `src/lib/image.ts` BEFORE storage/upload (token cost + size). Keep this on the upload path.
+**Storage is local-only.** All user data (drawings as compressed JPEG data URLs + feedback + progress) lives in IndexedDB via `src/lib/db.ts` (using `idb`). It does not sync across devices/browsers. `db.ts` exports `exportAll`/`importAll` (JSON backup) and calls `navigator.storage.persist()` on startup to resist eviction; Settings surfaces both. Images are downscaled to ≤1024px JPEG in `src/lib/image.ts` BEFORE storage/upload — keep this on the upload path.
 
 **Content is data-driven.** `src/data/curriculum.ts` is the source of truth for all 30 days and the 4 phases (`lines`/`pencil`/`watercolor`/`mixed`, day ranges 1–7 / 8–15 / 16–23 / 24–30). UI derives everything (phase badges, progress bars, gallery grouping) from it. `useProgress` computes `currentDay` as the first uncompleted day — unlocking is intentionally NOT calendar-locked (de-frustration design); any day is always openable.
 
-**Feedback rendering.** `src/lib/feedback.ts#parseFeedback` splits the model's free-text reply into three cards by locating the `【...】` section markers. It tolerates drift (falls back to one card). If you change the prompt's section headings in `shared/critique.ts`, update the marker lists here in lockstep.
+**Feedback rendering.** `src/lib/feedback.ts#parseFeedback` splits the model's free-text reply into three cards by locating the `【...】` section markers, tolerating drift (falls back to one card). If you change the prompt's section headings in `critique.ts`, update the marker lists here in lockstep.
+
+## GitHub Pages specifics (easy to break)
+
+- **Base path**: `vite.config.ts` sets `base: '/poke-canvas-trainer/'` (must match the repo name). The built `index.html`, manifest scope, and assets all live under that prefix. If the repo is renamed or moved to a custom domain / `<user>.github.io` root, update `base` to match (or `'/'`).
+- **Routing**: uses `HashRouter` (`src/main.tsx`) so deep links work on GitHub Pages without server-side SPA fallback. Don't switch to `BrowserRouter` unless you add a `404.html` redirect shim.
 
 ## TypeScript project layout
 
-Three tsconfigs via project references (`tsconfig.json` references app + node):
-- `tsconfig.app.json` → `src/` (DOM libs, React JSX).
-- `tsconfig.node.json` → `vite.config.ts`, `vite-dev-api.ts`, `shared/**` (Node types; `fetch`/`Response` come from `@types/node`).
-- `functions/tsconfig.json` → `functions/**` (Cloudflare `@cloudflare/workers-types` provides `PagesFunction`, global `fetch`); pulls in `shared/` via import resolution. Not part of `tsc -b`.
+Project references via `tsconfig.json` → app + node:
+- `tsconfig.app.json` → `src/` (DOM libs, React JSX). `critique.ts` runs in the browser, so `fetch`/`Response`/`localStorage` come from the DOM lib here.
+- `tsconfig.node.json` → `vite.config.ts` only (`vite/client` types).
 
 ## Deployment
 
-Cloudflare Pages via GitHub Actions (`.github/workflows/deploy.yml`): push to `main` → typecheck + build + `wrangler pages deploy`. Two secret locations, do not mix them up:
-- **Cloudflare Pages env vars** (runtime): `ANTHROPIC_API_KEY` (required for AI), `ANTHROPIC_MODEL` (optional, default `claude-sonnet-4-6`).
-- **GitHub Actions secrets** (deploy only): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. The Anthropic key must NOT go here.
-
-The Pages project name (`poke-canvas-trainer`) must match `--project-name` in the workflow and `name` in `wrangler.toml`.
+GitHub Pages via GitHub Actions (`.github/workflows/deploy.yml`): push to `main` → typecheck + build → `upload-pages-artifact` → `deploy-pages`. Requires repo **Settings → Pages → Source = GitHub Actions**. No secrets/env vars needed — each user supplies their own Anthropic key in the browser at runtime.

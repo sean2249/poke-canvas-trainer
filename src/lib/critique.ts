@@ -1,7 +1,7 @@
 /**
- * 與執行環境無關的 AI 點評核心邏輯（使用全域 fetch，可在 Cloudflare workerd 與 Node 執行）。
- * 由 Cloudflare Pages Function（正式環境）與 Vite dev-API plugin（本機開發）共用，
- * 確保「三步驟點評法」prompt 只有一份、不會走樣。
+ * AI 點評核心邏輯（在瀏覽器端直接呼叫 Anthropic API）。
+ * 金鑰由使用者在「設定」頁輸入並存於 localStorage，呼叫時帶入。
+ * 需附上 `anthropic-dangerous-direct-browser-access` 標頭，Anthropic 才會允許瀏覽器跨網域直連。
  */
 
 export const DEFAULT_MODEL = 'claude-sonnet-4-6'
@@ -82,6 +82,8 @@ export async function generateCritique(
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        // 允許從瀏覽器直接呼叫（金鑰存在使用者自己的瀏覽器）
+        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify(payload),
     })
