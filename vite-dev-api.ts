@@ -50,7 +50,13 @@ function send(res: import('node:http').ServerResponse, status: number, data: unk
 async function readJson(req: import('node:http').IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = []
   for await (const chunk of req) chunks.push(chunk as Buffer)
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  const raw = Buffer.concat(chunks).toString('utf8')
+  try {
+    return JSON.parse(raw)
+  } catch {
+    // 與正式環境 functions/api/critique.ts 一致，回傳友善的 400 而非原始 V8 錯誤
+    throw new CritiqueError('請求格式錯誤', 400)
+  }
 }
 
 export function devApi(): Plugin {

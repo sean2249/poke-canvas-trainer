@@ -40,7 +40,9 @@ export default function Settings() {
   async function handleClear() {
     await clearAll()
     setConfirmClear(false)
-    setMsg('已清除所有資料。')
+    setMsg('已清除所有資料，重新整理中…')
+    // 重新整理讓 Dashboard/Gallery 等獨立的 useProgress 重新讀取（避免顯示已清除的舊資料）
+    window.setTimeout(() => window.location.reload(), 700)
   }
 
   async function handlePersist() {
