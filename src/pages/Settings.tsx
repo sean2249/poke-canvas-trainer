@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { clearAll, exportAll, importAll, isStoragePersisted, requestPersistentStorage } from '../lib/db'
-import { clearApiKey, getApiKey, getModel, hasApiKey, maskKey, setApiKey, setModel } from '../lib/apiKey'
+import { clearApiKey, getApiKey, getModel, maskKey, setApiKey, setModel } from '../lib/apiKey'
 
 export default function Settings() {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -18,11 +18,12 @@ export default function Settings() {
   }, [])
 
   function handleSaveKey() {
-    setApiKey(keyInput)
+    // 只有輸入了新金鑰才覆寫，避免「只想改模型」時把既有金鑰清掉（移除請用「移除金鑰」）
+    if (keyInput.trim()) setApiKey(keyInput)
     setModel(modelInput)
     setSavedKey(getApiKey())
     setKeyInput('')
-    setMsg(hasApiKey() ? '已儲存 API 金鑰 ✨' : '已清除 API 金鑰')
+    setMsg('已儲存設定 ✨')
   }
 
   function handleClearKey() {
