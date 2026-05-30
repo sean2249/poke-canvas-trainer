@@ -2,56 +2,48 @@
 
 新手從零開始的連續 30 天手繪陪跑網頁 App（PWA）。每天解鎖一隻寶可夢主題與訓練重點，用實體紙筆練習後拍照上傳，由 Claude 多模態模型扮演溫柔的繪畫導師，依「三步驟點評法」給出鼓勵又具體的中文回饋，並把畫作與評語收進你的「30天寶可夢圖鑑牆」。
 
-## 技術架構
+## 技術架構（純前端 / 靜態）
 
-- **前端**：React + Vite + TypeScript + Tailwind CSS（行動優先、PWA 可安裝）
-- **後端代理**：Cloudflare Pages Functions（`functions/api/critique.ts`）代轉 Anthropic API，金鑰只存伺服器、永不進瀏覽器
-- **AI 導師**：Claude（多模態視覺），預設 `claude-sonnet-4-6`
+- **前端**：React + Vite + TypeScript + Tailwind CSS（行動優先、PWA 可安裝、HashRouter）
+- **AI 導師**：瀏覽器**直接呼叫** Anthropic API（多模態），預設 `claude-sonnet-4-6`
+- **金鑰**：使用者在「設定」頁輸入自己的 Anthropic API 金鑰，存於瀏覽器 `localStorage`
 - **儲存**：IndexedDB 本機（畫作 + 評語 + 進度），可匯出/匯入 JSON 備份
-- **部署**：Cloudflare Pages，GitHub Actions 自動 CI/CD
+- **部署**：GitHub Pages（GitHub Actions 自動 build + deploy）
+
+沒有任何後端伺服器：圖片壓縮、API 呼叫、資料儲存全部在瀏覽器完成。
 
 ```
-瀏覽器 (React SPA)                Cloudflare Pages
-  畫作壓縮 ≤1024px  ──POST /api/critique──▶  Function 組 prompt ──▶ Anthropic
-  IndexedDB 存結果  ◀──── 中文三步驟回饋 ────  (金鑰=env secret)   ◀──
+瀏覽器 (React SPA, GitHub Pages)
+  畫作壓縮 ≤1024px ──直接 fetch──▶ api.anthropic.com  (x-api-key = 使用者本機金鑰)
+  IndexedDB 存結果 ◀──── 中文三步驟回饋 ────
 ```
+
+> ⚠️ **金鑰安全**：純前端架構沒有後端可代為保管金鑰，金鑰存在你自己的瀏覽器、並由瀏覽器直接送往 Anthropic。
+> 請只在個人裝置使用、勿在公用電腦輸入，建議使用額度受限的個人金鑰。呼叫時帶有
+> `anthropic-dangerous-direct-browser-access` 標頭以允許瀏覽器直連。
 
 ## 本機開發
 
-一個指令就能完整運作（前端 + `/api`）：
-
 ```bash
 npm install
-npm run dev          # http://localhost:5173
+npm run dev          # http://localhost:5173/poke-canvas-trainer/
 ```
-
-開發時的 `/api/status`、`/api/critique` 由 Vite 內建的 dev-API 外掛（`vite-dev-api.ts`）
-在同一個程序內提供，與正式環境的 Cloudflare Function 共用 `shared/critique.ts` 的點評邏輯。
 
 **AI 金鑰是「非必須」**：
 
-- 沒有金鑰 → App 照常運作，可記錄與存檔作品；UI 會顯示「AI 老師尚未設定」。
-- 想要點評 → 建立 `.dev.vars` 填入金鑰，重啟 `npm run dev`：
-  ```bash
-  cp .dev.vars.example .dev.vars   # 填入 ANTHROPIC_API_KEY
-  ```
-  之後到任一天上傳作品即可獲得三步驟點評；先前「暫無點評」的作品也能按「請老師現在點評」補上。
+- 沒有金鑰 → App 照常運作，可記錄與存檔作品；UI 顯示「AI 老師尚未設定」。
+- 想要點評 → 進「設定」頁貼上你的 Anthropic API 金鑰（可選填模型），存檔後即可在各天上傳並取得三步驟點評；先前「暫無點評」的作品也能按「請老師現在點評」補上。
 
-> 選用：若想用真正的 Cloudflare workerd 執行期測試 Functions，可跑 `npm run build && npm run pages:dev`
-> （需 wrangler；部分環境的本機 workerd 伺服器可能無法啟動，一般開發用上面的 `npm run dev` 即可）。
+## 部署到 GitHub Pages
 
-## 部署到 Cloudflare Pages（GitHub Actions）
+1. **設定 base path**：`vite.config.ts` 的 `base` 預設為 `/poke-canvas-trainer/`（= repo 名）。
+   若改用自訂網域或 `<user>.github.io` 主 repo，改為 `'/'`。
+2. 在 **GitHub repo → Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**。
+3. `git push` 到 `main` → `.github/workflows/deploy.yml` 會自動 typecheck、build、部署。
+   PR 只跑 typecheck + build 不部署。
+4. 完成後網址為 `https://<user>.github.io/poke-canvas-trainer/`。
 
-1. 在 Cloudflare 建立一個 Pages 專案，名稱設為 `poke-canvas-trainer`（與 workflow 內 `--project-name` 一致）。
-2. 在 **Cloudflare Pages 專案 → Settings → Environment variables** 設定執行期密鑰：
-   - `ANTHROPIC_API_KEY`（必填）
-   - `ANTHROPIC_MODEL`（可選）
-3. 在 **GitHub repo → Settings → Secrets and variables → Actions** 設定部署用密鑰：
-   - `CLOUDFLARE_API_TOKEN`（具 Pages 編輯權限的 API token）
-   - `CLOUDFLARE_ACCOUNT_ID`
-4. `git push` 到 `main` → GitHub Actions 會自動 typecheck、build、部署。PR 只跑檢查不部署。
-
-> 注意：`ANTHROPIC_API_KEY` 設在 Cloudflare（執行期讀取），**不要**放進 GitHub Actions secrets。
+不需要任何雲端密鑰或環境變數 —— AI 金鑰由每位使用者在自己的瀏覽器輸入。
 
 ## 資料持久性
 
@@ -61,18 +53,19 @@ npm run dev          # http://localhost:5173
 - ❌ 換裝置 / 換瀏覽器 / 清除網站資料 / 無痕模式：看不到或會被清掉
 - ⚠️ 瀏覽器空間不足時可能自動回收；Safari/iOS 長期未互動也可能被清
 
-緩解：App 啟動會呼叫 `navigator.storage.persist()` 申請持久化；請定期到「設定」頁**匯出備份 JSON**。跨裝置同步為日後可加的延伸（例如接 Supabase）。
+緩解：App 啟動會呼叫 `navigator.storage.persist()` 申請持久化；請定期到「設定」頁**匯出備份 JSON**。
 
 ## 專案結構
 
 ```
-shared/critique.ts          點評核心（prompt + Anthropic 呼叫），dev 與正式共用
-functions/api/critique.ts   正式環境後端代理（Cloudflare Pages Function）
-functions/api/status.ts     回報是否已設定金鑰（aiEnabled）
-vite-dev-api.ts             本機開發的 /api 處理器（Vite plugin）
+src/lib/critique.ts         三步驟 prompt + 直接呼叫 Anthropic
+src/lib/apiKey.ts           localStorage 金鑰/模型管理
+src/lib/api.ts              app 介面：getAiStatus()、requestCritique()
+src/lib/db.ts               IndexedDB CRUD + 備份 + 持久化
+src/lib/image.ts            上傳前壓縮 ≤1024px
+src/lib/feedback.ts         把回覆拆成三張卡片
+src/lib/useProgress.ts      由 entries 聚合各階段進度
 src/data/curriculum.ts      30 天課表 + 四階段資料
-src/lib/                    db(IndexedDB) / image(壓縮) / api / feedback(解析) / useProgress
-src/components/             共用 UI 元件
 src/pages/                  Dashboard / DayView / Gallery / Settings
-.github/workflows/deploy.yml  CI/CD
+.github/workflows/deploy.yml  CI/CD（GitHub Pages）
 ```

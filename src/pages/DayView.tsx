@@ -19,12 +19,8 @@ export default function DayView() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
-  // null = 檢查中，true/false = AI 老師是否已設定
-  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    void getAiStatus().then(setAiEnabled)
-  }, [])
+  // 是否已設定金鑰（讀 localStorage）
+  const [aiEnabled] = useState<boolean>(() => getAiStatus())
 
   useEffect(() => {
     setEntry(null)
@@ -140,12 +136,16 @@ export default function DayView() {
       </section>
 
       {/* AI 老師尚未設定的提示 */}
-      {aiEnabled === false && (
+      {!aiEnabled && (
         <div className="rounded-xl2 border border-sunny/40 bg-sand/50 px-4 py-3 text-sm">
           <p className="font-semibold">🔔 AI 老師尚未設定</p>
           <p className="mt-1 text-ink/70">
-            後端還沒有 <code>ANTHROPIC_API_KEY</code>，目前無法取得點評。
-            你仍然可以記錄並存檔作品到圖鑑牆；設定金鑰後，回到這一天就能請老師補點評。
+            還沒輸入 Anthropic API 金鑰，目前無法取得點評。
+            你仍然可以記錄並存檔作品到圖鑑牆；
+            <Link to="/settings" className="font-semibold text-sunny underline">
+              到設定頁輸入金鑰
+            </Link>
+            後，回到這一天就能請老師補點評。
           </p>
         </div>
       )}

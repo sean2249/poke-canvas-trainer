@@ -1,14 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { devApi } from './vite-dev-api'
+
+// GitHub Pages 會把站台放在 /<repo>/ 子路徑底下。
+// 若改用自訂網域或 <user>.github.io 主 repo，請把 base 改為 '/'。
+const base = '/poke-canvas-trainer/'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base,
   plugins: [
     react(),
-    // 本機開發時提供 /api（正式環境由 Cloudflare Pages Function 提供）
-    devApi(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
@@ -24,10 +26,6 @@ export default defineConfig({
           { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
           { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
         ],
-      },
-      workbox: {
-        // Don't precache API routes; let them hit the network.
-        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
