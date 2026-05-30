@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-cream text-ink font-round antialiased;
+    background-image: radial-gradient(rgba(245, 158, 11, 0.08) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl2 shadow-soft border border-sand;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-3
+           font-semibold transition active:scale-95 disabled:opacity-50 disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-sunny text-white shadow-soft hover:brightness-105;
+  }
+  .btn-ghost {
+    @apply btn bg-white text-ink border border-sand hover:bg-sand;
+  }
+}
