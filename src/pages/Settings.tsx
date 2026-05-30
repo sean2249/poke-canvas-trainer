@@ -1,18 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { clearAll, exportAll, importAll, isStoragePersisted, requestPersistentStorage } from '../lib/db'
-import { getAiStatus } from '../lib/api'
+import { clearApiKey, getApiKey, getModel, maskKey, setApiKey, setModel } from '../lib/apiKey'
 
 export default function Settings() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [persisted, setPersisted] = useState<boolean | null>(null)
-  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
 
+  // API 金鑰管理
+  const [keyInput, setKeyInput] = useState('')
+  const [modelInput, setModelInput] = useState(() => getModel())
+  const [savedKey, setSavedKey] = useState(() => getApiKey())
+
   useEffect(() => {
     void isStoragePersisted().then(setPersisted)
-    void getAiStatus().then(setAiEnabled)
   }, [])
+
+  function handleSaveKey() {
+    // 只有輸入了新金鑰才覆寫，避免「只想改模型」時把既有金鑰清掉（移除請用「移除金鑰」）
+    if (keyInput.trim()) setApiKey(keyInput)
+    setModel(modelInput)
+    setSavedKey(getApiKey())
+    setKeyInput('')
+    setMsg('已儲存設定 ✨')
+  }
+
+  function handleClearKey() {
+    clearApiKey()
+    setSavedKey('')
+    setKeyInput('')
+    setMsg('已移除 API 金鑰')
+  }
 
   async function handleExport() {
     const json = await exportAll()
@@ -79,21 +98,69 @@ export default function Settings() {
         )}
       </section>
 
-      {/* AI 老師狀態 */}
+      {/* AI 老師 — API 金鑰 */}
       <section className="card space-y-3 p-4">
-        <h3 className="font-semibold">AI 老師</h3>
-        <div className="flex items-center justify-between rounded-xl2 bg-sand/40 px-3 py-2 text-sm">
-          <span>點評功能</span>
-          <span className={aiEnabled ? 'text-mint' : 'text-coral'}>
-            {aiEnabled === null ? '檢查中…' : aiEnabled ? '已就緒 ✨' : '尚未設定'}
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">AI 老師（Anthropic 金鑰）</h3>
+          <span className={savedKey ? 'text-mint text-sm' : 'text-coral text-sm'}>
+            {savedKey ? '已就緒 ✨' : '尚未設定'}
           </span>
         </div>
-        {aiEnabled === false && (
-          <p className="text-sm text-ink/60">
-            後端尚未設定 <code>ANTHROPIC_API_KEY</code>，目前可記錄與存檔作品但無法取得點評。
-            設定金鑰後，到各天頁面即可請老師補點評（詳見 README）。
-          </p>
+
+        <p className="rounded-xl2 bg-coral/10 px-3 py-2 text-xs text-coral">
+          ⚠️ 這是純前端 App（GitHub Pages），金鑰會存在<strong>你自己的瀏覽器</strong>並由瀏覽器
+          直接呼叫 Anthropic。請只在自己的裝置使用、勿在公用電腦輸入；建議用額度受限的個人金鑰。
+        </p>
+
+        {savedKey && (
+          <div className="flex items-center justify-between rounded-xl2 bg-sand/40 px-3 py-2 text-sm">
+            <span>目前金鑰</span>
+            <code className="text-ink/70">{maskKey(savedKey)}</code>
+          </div>
         )}
+
+        <label className="block text-sm font-semibold">
+          API 金鑰
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="sk-ant-..."
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            className="mt-1 w-full rounded-xl2 border border-sand px-3 py-2 font-mono text-sm outline-none focus:border-sunny"
+          />
+        </label>
+
+        <label className="block text-sm font-semibold">
+          模型（可留空用預設 claude-sonnet-4-6）
+          <input
+            type="text"
+            autoComplete="off"
+            placeholder="claude-sonnet-4-6"
+            value={modelInput}
+            onChange={(e) => setModelInput(e.target.value)}
+            className="mt-1 w-full rounded-xl2 border border-sand px-3 py-2 font-mono text-sm outline-none focus:border-sunny"
+          />
+        </label>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="btn-primary flex-1"
+            disabled={!keyInput.trim() && !savedKey}
+            onClick={handleSaveKey}
+          >
+            儲存
+          </button>
+          {savedKey && (
+            <button type="button" className="btn-ghost flex-1" onClick={handleClearKey}>
+              移除金鑰
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-ink/40">
+          金鑰申請：console.anthropic.com → API Keys。金鑰只存在本機，不會上傳任何伺服器。
+        </p>
       </section>
 
       {/* 備份 / 還原 */}

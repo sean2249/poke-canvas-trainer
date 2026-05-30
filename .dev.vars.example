@@ -1,4 +1,0 @@
-# 複製此檔為 .dev.vars（已被 .gitignore 忽略），填入你的金鑰供本機 wrangler pages dev 使用。
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx
-# 可選：覆蓋預設模型
-# ANTHROPIC_MODEL=claude-sonnet-4-6

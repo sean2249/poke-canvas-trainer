@@ -1,0 +1,7 @@
+# 統一以 LF 儲存與簽出文字檔，消除 Windows 上的 CRLF 警告。
+* text=auto eol=lf
+
+# 二進位 / 不轉換
+*.png binary
+*.jpg binary
+*.ico binary

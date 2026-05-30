@@ -31,5 +31,3 @@ pnpm-debug.log*
 # env / secrets
 .env
 .env.*
-.dev.vars
-.wrangler
