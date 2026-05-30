@@ -3,7 +3,7 @@ import type { PhaseInfo } from '../types'
 const ACCENT_BG: Record<string, string> = {
   ink: 'bg-ink/10 text-ink',
   coral: 'bg-coral/15 text-coral',
-  sky: 'bg-sky/20 text-sky-700',
+  sky: 'bg-sky/20 text-cyan-700',
   grape: 'bg-grape/20 text-grape',
 }
 
